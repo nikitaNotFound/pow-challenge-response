@@ -9,24 +9,30 @@ import (
 	"time"
 )
 
-const (
-	Difficulty = 6
-)
-
 type Challenge struct {
-	Data      string
-	Timestamp int64
+	Data       string
+	Timestamp  int64
+	Difficulty int
 }
 
-func GenerateChallenge() *Challenge {
+func GenerateChallenge(difficulty int) *Challenge {
 	return &Challenge{
-		Data:      generateRandomString(16),
-		Timestamp: time.Now().Unix(),
+		Data:       generateRandomString(16),
+		Timestamp:  time.Now().Unix(),
+		Difficulty: difficulty,
+	}
+}
+
+func NewChallenge(data string, timestamp int64, difficulty int) *Challenge {
+	return &Challenge{
+		Data:       data,
+		Timestamp:  timestamp,
+		Difficulty: difficulty,
 	}
 }
 
 func (c *Challenge) Solve() (int, error) {
-	target := strings.Repeat("0", Difficulty)
+	target := strings.Repeat("0", c.Difficulty)
 	nonce := 0
 
 	for {
@@ -40,7 +46,7 @@ func (c *Challenge) Solve() (int, error) {
 
 func (c *Challenge) Verify(nonce int) bool {
 	hash := calculateHash(c.Data, c.Timestamp, nonce)
-	target := strings.Repeat("0", Difficulty)
+	target := strings.Repeat("0", c.Difficulty)
 	return strings.HasPrefix(hash, target)
 }
 

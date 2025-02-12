@@ -1,4 +1,4 @@
-package quotes
+package server
 
 import (
 	"math/rand"
@@ -14,4 +14,4 @@ var quotes = []string{
 
 func GetRandomQuote() string {
 	return quotes[rand.Intn(len(quotes))]
-} 
+}

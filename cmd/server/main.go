@@ -6,37 +6,16 @@ import (
 	"net"
 	"time"
 	"wordofwisdom/internal/pow"
-	"wordofwisdom/internal/quotes"
 )
 
 const (
 	PORT = "127.0.0.1:12345"
 )
 
-type Message struct {
-	Type    string `json:"type"`
-	Payload any    `json:"payload"`
-}
-
 func main() {
 	time.Sleep(time.Second)
 
-	listener, err := net.Listen("tcp", PORT)
-	if err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
-	defer listener.Close()
-
-	log.Printf("Server listening on %s", PORT)
-
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			log.Printf("Failed to accept connection: %v", err)
-			continue
-		}
-		go handleConnection(conn)
-	}
+	
 }
 
 func handleConnection(conn net.Conn) {
@@ -57,7 +36,7 @@ func handleConnection(conn net.Conn) {
 			continue
 		}
 
-		challenge := pow.GenerateChallenge()
+		
 		if err := encoder.Encode(Message{Type: "challenge", Payload: challenge}); err != nil {
 			log.Printf("Failed to send challenge: %v", err)
 			return
