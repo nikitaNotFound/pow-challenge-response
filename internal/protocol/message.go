@@ -19,3 +19,13 @@ type MessageDecoder interface {
 type MessageEncoder interface {
 	Encode() ([]byte, error)
 }
+
+func (m *Message) IsSuccess() bool {
+	f := MessageFlags(m.Flags)
+	return !f.HasFlag(MSG_FAIL_FLAG)
+}
+
+func (m *Message) IsFailure() bool {
+	f := MessageFlags(m.Flags)
+	return f.HasFlag(MSG_FAIL_FLAG)
+}

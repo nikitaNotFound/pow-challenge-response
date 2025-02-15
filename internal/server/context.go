@@ -35,9 +35,10 @@ func (ctx *ServerContext) WaitMessage() (*protocol.Message, error) {
 		return nil, errors.Join(err, errors.New("failed to read message"))
 	}
 
-	// Skip first byte for flags. For now we don't expect any flags from client.
+	flags := messageBuff[0]
 	opcode := binary.BigEndian.Uint32(messageBuff[1:5])
 	return &protocol.Message{
+		Flags:  flags,
 		Opcode: opcode,
 		Data:   messageBuff[5:bytesMessage],
 	}, nil
