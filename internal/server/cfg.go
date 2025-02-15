@@ -3,7 +3,7 @@ package server
 type ServerConfig struct {
 	Address             string
 	MaxMessageSizeBytes int
-	ChallengeDifficulty int
+	ChallengeDifficulty int64
 }
 
 func GetServerConfig() *ServerConfig {

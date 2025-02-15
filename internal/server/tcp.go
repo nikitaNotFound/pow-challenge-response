@@ -6,15 +6,17 @@ import (
 	"io"
 	"log"
 	"net"
-	"wordofwisdom/internal/messages"
+	"wordofwisdom/internal/protocol"
 )
+
+type ServerHandler func(ctx ServerContext) error
 
 type TcpServer struct {
 	MaxMessageSizeBytes int
 	Address             string
 	Ctx                 context.Context
 
-	handlers map[uint32]func(context.Context, io.Writer, io.Reader, []byte) error
+	handlers map[uint32]ServerHandler
 }
 
 func NewTcpServer(ctx context.Context, address string, maxMessageSizeBits int) *TcpServer {
@@ -27,7 +29,7 @@ func NewTcpServer(ctx context.Context, address string, maxMessageSizeBits int) *
 
 func (s *TcpServer) RegisterHandler(
 	opcode uint32,
-	handler func(context.Context, io.Writer, io.Reader, []byte) error,
+	handler ServerHandler,
 ) {
 	s.handlers[opcode] = handler
 }
@@ -85,10 +87,14 @@ func (s *TcpServer) handleNewConnection(conn net.Conn) {
 		if !ok {
 			log.Printf("No handler found for opcode: %d", opcode)
 			msgBuf := make([]byte, 4)
-			binary.BigEndian.PutUint32(msgBuf, messages.ERR_CODE_INVALID_OPCODE)
+			binary.BigEndian.PutUint32(msgBuf, protocol.ERR_CODE_INVALID_OPCODE)
 			conn.Write(msgBuf)
 			continue
 		}
-		handler(s.Ctx, conn, conn, messageBuff[4:bytesMessage])
+		handler(ServerContext{
+			Ctx:        s.Ctx,
+			Conn:       conn,
+			RawMessage: messageBuff[4:bytesMessage],
+		})
 	}
 }
