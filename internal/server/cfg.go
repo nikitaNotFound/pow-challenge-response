@@ -8,7 +8,7 @@ type ServerConfig struct {
 
 func GetServerConfig() *ServerConfig {
 	return &ServerConfig{
-		Address:             "localhost:8080",
+		Address:             "127.0.0.1:12345",
 		MaxMessageSizeBytes: 1024,
 		ChallengeDifficulty: 6,
 	}

@@ -24,6 +24,7 @@ func NewTcpServer(ctx context.Context, address string, maxMessageSizeBits int) *
 		MaxMessageSizeBytes: maxMessageSizeBits,
 		Address:             address,
 		Ctx:                 ctx,
+		handlers:            make(map[uint32]ServerHandler),
 	}
 }
 
