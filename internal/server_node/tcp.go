@@ -6,25 +6,34 @@ import (
 	"errors"
 	"log"
 	"net"
+	"strings"
+	"sync"
 	"wordofwisdom/pkg/protocol"
 )
 
 type ServerHandler func(ctx *ServerContext) error
 
 type TcpServer struct {
-	MaxMessageSizeBytes int
-	Address             string
-	Ctx                 context.Context
+	MaxMessageSizeBytes     int
+	MaxConnectionsPerClient int
+	Address                 string
+	Ctx                     context.Context
 
 	handlers map[uint32]ServerHandler
+
+	connections      map[string]int
+	connectionsMutex sync.Mutex
 }
 
-func NewTcpServer(ctx context.Context, address string, maxMessageSizeBits int) *TcpServer {
+func NewTcpServer(ctx context.Context, address string, maxMessageSizeBits int, maxConnectionsPerClient int) *TcpServer {
 	return &TcpServer{
-		MaxMessageSizeBytes: maxMessageSizeBits,
-		Address:             address,
-		Ctx:                 ctx,
-		handlers:            make(map[uint32]ServerHandler),
+		MaxMessageSizeBytes:     maxMessageSizeBits,
+		MaxConnectionsPerClient: maxConnectionsPerClient,
+		Address:                 address,
+		Ctx:                     ctx,
+		handlers:                make(map[uint32]ServerHandler),
+		connections:             make(map[string]int),
+		connectionsMutex:        sync.Mutex{},
 	}
 }
 
@@ -56,15 +65,44 @@ func (s *TcpServer) Run() error {
 			log.Printf("Failed to accept connection: %v", err)
 			continue
 		}
+
 		go s.handleNewConnection(conn)
 	}
 }
 
-func (s *TcpServer) handleNewConnection(conn net.Conn) {
-	defer conn.Close()
+func (s *TcpServer) reserveClientConnection(clientIp string) error {
+	s.connectionsMutex.Lock()
+	defer s.connectionsMutex.Unlock()
+	clientConnections := s.connections[clientIp]
+	if clientConnections >= s.MaxConnectionsPerClient {
+		log.Printf("Max connections per client reached for ip: %s, current connections: %d", clientIp, clientConnections)
+		return errors.New("max connections per client reached")
+	}
+	s.connections[clientIp]++
+	return nil
+}
 
-	clientIp := conn.RemoteAddr().String()
-	log.Printf("New connection established with ip: %s", clientIp)
+func (s *TcpServer) releaseClientConnection(clientIp string) {
+	s.connectionsMutex.Lock()
+	defer s.connectionsMutex.Unlock()
+	s.connections[clientIp]--
+}
+
+func (s *TcpServer) handleNewConnection(conn net.Conn) {
+	clientIp := strings.Split(conn.RemoteAddr().String(), ":")[0]
+
+	if err := s.reserveClientConnection(clientIp); err != nil {
+		conn.Close()
+		return
+	}
+
+	clientAddress := conn.RemoteAddr().String()
+	log.Printf("New connection established with ip: %s", clientAddress)
+
+	defer func() {
+		conn.Close()
+		s.releaseClientConnection(clientIp)
+	}()
 
 	serverCtx := NewServerContext(s.Ctx, conn, s.MaxMessageSizeBytes)
 
@@ -75,13 +113,13 @@ func (s *TcpServer) handleNewConnection(conn net.Conn) {
 		default:
 		}
 
-		log.Printf("Waiting for message from client: %s", clientIp)
+		log.Printf("Waiting for message from client: %s", clientAddress)
 
 		msg, err := serverCtx.WaitMessage()
 		if err != nil {
 			log.Printf("Failed to wait for message: %v", err)
 			if errors.Is(err, ErrConnectionClosed) {
-				log.Printf("Client %s disconnected", clientIp)
+				log.Printf("Client %s disconnected", clientAddress)
 				return
 			}
 			continue
