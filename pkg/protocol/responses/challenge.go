@@ -3,6 +3,7 @@ package responses
 import (
 	"encoding/binary"
 	"errors"
+	"strconv"
 )
 
 type ChallengeResponse struct {
@@ -23,7 +24,7 @@ func (cr *ChallengeResponse) Encode() ([]byte, error) {
 
 func (cr *ChallengeResponse) Decode(buff []byte) error {
 	if len(buff) <= 16+8+8 {
-		return errors.New("invalid challenge response")
+		return errors.New("invalid challenge response: too short [SIZE: " + strconv.Itoa(len(buff)) + "]")
 	}
 
 	var dataBuff [16]byte

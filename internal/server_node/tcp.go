@@ -1,15 +1,15 @@
-package server
+package server_node
 
 import (
 	"context"
 	"encoding/binary"
-	"io"
+	"errors"
 	"log"
 	"net"
-	"wordofwisdom/internal/protocol"
+	"wordofwisdom/pkg/protocol"
 )
 
-type ServerHandler func(ctx ServerContext) error
+type ServerHandler func(ctx *ServerContext) error
 
 type TcpServer struct {
 	MaxMessageSizeBytes int
@@ -63,6 +63,11 @@ func (s *TcpServer) Run() error {
 func (s *TcpServer) handleNewConnection(conn net.Conn) {
 	defer conn.Close()
 
+	clientIp := conn.RemoteAddr().String()
+	log.Printf("New connection established with ip: %s", clientIp)
+
+	serverCtx := NewServerContext(s.Ctx, conn, s.MaxMessageSizeBytes)
+
 	for {
 		select {
 		case <-s.Ctx.Done():
@@ -70,32 +75,26 @@ func (s *TcpServer) handleNewConnection(conn net.Conn) {
 		default:
 		}
 
-		log.Printf("Waiting for message...")
+		log.Printf("Waiting for message from client: %s", clientIp)
 
-		messageBuff := make([]byte, s.MaxMessageSizeBytes)
-		bytesMessage, err := conn.Read(messageBuff)
+		msg, err := serverCtx.WaitMessage()
 		if err != nil {
-			if err == io.EOF {
-				log.Printf("Connection closed by client")
+			log.Printf("Failed to wait for message: %v", err)
+			if errors.Is(err, ErrConnectionClosed) {
+				log.Printf("Client %s disconnected", clientIp)
 				return
 			}
-			log.Printf("Failed to read message: %v", err)
 			continue
 		}
 
-		opcode := binary.BigEndian.Uint32(messageBuff[:4])
-		handler, ok := s.handlers[opcode]
+		handler, ok := s.handlers[msg.Opcode]
 		if !ok {
-			log.Printf("No handler found for opcode: %d", opcode)
+			log.Printf("No handler found for opcode: %d", msg.Opcode)
 			msgBuf := make([]byte, 4)
 			binary.BigEndian.PutUint32(msgBuf, protocol.ERR_CODE_INVALID_OPCODE)
 			conn.Write(msgBuf)
 			continue
 		}
-		handler(ServerContext{
-			Ctx:        s.Ctx,
-			Conn:       conn,
-			RawMessage: messageBuff[4:bytesMessage],
-		})
+		handler(serverCtx)
 	}
 }

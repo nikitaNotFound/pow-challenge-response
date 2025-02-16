@@ -1,23 +1,23 @@
-package server
+package server_node
 
 import (
 	"errors"
 	"wordofwisdom/internal/pow"
-	"wordofwisdom/internal/protocol/requests"
-	"wordofwisdom/internal/protocol/responses"
+	"wordofwisdom/pkg/protocol/requests"
+	"wordofwisdom/pkg/protocol/responses"
 )
 
 type serverHandlers struct {
-	challengeDifficulty int64
+	challengeDifficulty uint64
 }
 
-func NewServerHandlers(challengeDifficulty int64) *serverHandlers {
+func NewServerHandlers(challengeDifficulty uint64) *serverHandlers {
 	return &serverHandlers{
 		challengeDifficulty: challengeDifficulty,
 	}
 }
 
-func (h *serverHandlers) handleRequestWisdom(svrCtx ServerContext) error {
+func (h *serverHandlers) handleRequestWisdom(svrCtx *ServerContext) error {
 	challenge := pow.GenerateChallenge(h.challengeDifficulty)
 	challengeResponse := responses.ChallengeResponse{
 		Data:           challenge.Data,

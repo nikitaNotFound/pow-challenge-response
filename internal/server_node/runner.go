@@ -1,8 +1,8 @@
-package server
+package server_node
 
 import (
 	"context"
-	"wordofwisdom/internal/protocol/requests"
+	"wordofwisdom/pkg/protocol/requests"
 )
 
 func RunServer(ctx context.Context) error {

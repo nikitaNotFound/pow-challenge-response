@@ -11,21 +11,21 @@ import (
 
 type Challenge struct {
 	Data           [16]byte
-	Timestamp      int64
-	Difficulty     int64
+	Timestamp      uint64
+	Difficulty     uint64
 	ExpectedPrefix []byte
 }
 
-func GenerateChallenge(difficulty int64) *Challenge {
+func GenerateChallenge(difficulty uint64) *Challenge {
 	return &Challenge{
 		Data:           generateRandom16xHash(),
-		Timestamp:      time.Now().Unix(),
+		Timestamp:      uint64(time.Now().Unix()),
 		Difficulty:     difficulty,
 		ExpectedPrefix: generateExpectedPrefix(difficulty),
 	}
 }
 
-func NewChallenge(data [16]byte, timestamp int64, difficulty int64) *Challenge {
+func NewChallenge(data [16]byte, timestamp uint64, difficulty uint64) *Challenge {
 	return &Challenge{
 		Data:           data,
 		Timestamp:      timestamp,
@@ -34,13 +34,13 @@ func NewChallenge(data [16]byte, timestamp int64, difficulty int64) *Challenge {
 	}
 }
 
-func generateExpectedPrefix(difficulty int64) []byte {
+func generateExpectedPrefix(difficulty uint64) []byte {
 	return []byte(strings.Repeat("0", int(difficulty)))
 }
 
-func (c *Challenge) Solve() (int64, error) {
+func (c *Challenge) Solve() (uint64, error) {
 	target := c.ExpectedPrefix
-	nonce := int64(0)
+	nonce := uint64(0)
 
 	for {
 		hash := calculateHash(c.Data, c.Timestamp, nonce)
@@ -51,12 +51,12 @@ func (c *Challenge) Solve() (int64, error) {
 	}
 }
 
-func (c *Challenge) Verify(nonce int64) bool {
+func (c *Challenge) Verify(nonce uint64) bool {
 	hash := calculateHash(c.Data, c.Timestamp, nonce)
 	return bytes.Equal(hash[:len(c.ExpectedPrefix)], c.ExpectedPrefix)
 }
 
-func calculateHash(data [16]byte, timestamp int64, nonce int64) [32]byte {
+func calculateHash(data [16]byte, timestamp uint64, nonce uint64) [32]byte {
 	input := fmt.Sprintf("%s%d%d", data, timestamp, nonce)
 	return sha256.Sum256([]byte(input))
 }
