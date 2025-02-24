@@ -3,18 +3,22 @@ package server_sdk
 import (
 	"context"
 	"errors"
+	"io"
 	"log"
 	"net"
 	"wordofwisdom/pkg/protocol"
 )
 
 type ServerSDK struct {
-	serverAddress string
-	ctx           context.Context
+	serverAddress       string
+	maxMessageSizeBytes int
+	ctx                 context.Context
 
 	conn net.Conn
 
-	maxMessageSizeBytes int
+	messagesCh  chan []byte
+	connCloseCh chan error
+	errCh       chan error
 }
 
 func NewServerSDK(ctx context.Context, address string, maxMessageSizeBytes int) *ServerSDK {
@@ -22,6 +26,9 @@ func NewServerSDK(ctx context.Context, address string, maxMessageSizeBytes int) 
 		serverAddress:       address,
 		ctx:                 ctx,
 		maxMessageSizeBytes: maxMessageSizeBytes,
+		messagesCh:          make(chan []byte),
+		connCloseCh:         make(chan error),
+		errCh:               make(chan error),
 	}
 }
 
@@ -44,11 +51,44 @@ func (s *ServerSDK) OpenConnection() error {
 	}
 	s.conn = conn
 
+	s.StartReceivingMessages()
+
 	return nil
+}
+
+func (s *ServerSDK) StartReceivingMessages() {
+	go func() {
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			default:
+			}
+
+			messageBuff := make([]byte, s.maxMessageSizeBytes)
+			bytesMessage, err := s.conn.Read(messageBuff)
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					s.connCloseCh <- ErrConnectionClosed
+					s.errCh <- err
+					return
+				}
+				s.errCh <- errors.Join(err, ErrFailedToWaitMessage)
+				continue
+			}
+
+			log.Printf("Received message from server, %d bytes", bytesMessage)
+			s.messagesCh <- messageBuff[:bytesMessage]
+		}
+	}()
 }
 
 func (s *ServerSDK) CloseConnection() error {
 	return s.conn.Close()
+}
+
+func (s *ServerSDK) WaitForClose() error {
+	return <-s.connCloseCh
 }
 
 func (s *ServerSDK) SendMessage(success bool, opcode uint32, payload protocol.MessageEncoder) error {
@@ -65,16 +105,17 @@ func (s *ServerSDK) SendMessage(success bool, opcode uint32, payload protocol.Me
 	return nil
 }
 
-func (s *ServerSDK) WaitMessage() (*protocol.RawMessage, error) {
-	messageBuff := make([]byte, s.maxMessageSizeBytes)
-	bytesMessage, err := s.conn.Read(messageBuff)
-	log.Printf("Received message from server, %d bytes", bytesMessage)
+func (s *ServerSDK) PopMessage() (*protocol.RawMessage, error) {
+	var message []byte
+	var err error
+	select {
+	case message = <-s.messagesCh:
+	case err = <-s.errCh:
+	}
+
 	if err != nil {
-		if errors.Is(err, net.ErrClosed) {
-			return nil, ErrConnectionClosed
-		}
 		return nil, errors.Join(err, ErrFailedToWaitMessage)
 	}
 
-	return protocol.ParseRawMessage(messageBuff[:bytesMessage])
+	return protocol.ParseRawMessage(message)
 }

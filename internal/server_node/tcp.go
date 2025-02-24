@@ -8,6 +8,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 	"wordofwisdom/pkg/protocol"
 	"wordofwisdom/pkg/worker_pool"
 )
@@ -15,10 +16,11 @@ import (
 type ServerHandler func(ctx *ServerContext) error
 
 type TcpServer struct {
-	MaxMessageSizeBytes     int
-	MaxConnectionsPerClient int
-	Address                 string
-	Ctx                     context.Context
+	maxMessageSizeBytes     int
+	maxConnectionsPerClient int
+	clientTimeout           time.Duration
+	address                 string
+	ctx                     context.Context
 
 	handlers map[uint32]ServerHandler
 
@@ -29,20 +31,18 @@ type TcpServer struct {
 
 func NewTcpServer(
 	ctx context.Context,
-	address string,
-	maxMessageSizeBits int,
-	maxConnectionsPerClient int,
-	workersAmount int,
+	cfg *ServerConfig,
 ) *TcpServer {
 	return &TcpServer{
-		MaxMessageSizeBytes:     maxMessageSizeBits,
-		MaxConnectionsPerClient: maxConnectionsPerClient,
-		Address:                 address,
-		Ctx:                     ctx,
+		maxMessageSizeBytes:     cfg.MaxMessageSizeBytes,
+		maxConnectionsPerClient: cfg.MaxConnectionsPerClient,
+		clientTimeout:           time.Duration(cfg.ClientTimeoutMilliseconds) * time.Millisecond,
+		address:                 cfg.Address,
+		ctx:                     ctx,
 		handlers:                make(map[uint32]ServerHandler),
 		connections:             make(map[string]int),
 		connectionsMutex:        sync.Mutex{},
-		workerPool:              worker_pool.NewWorkerPool(workersAmount, ctx),
+		workerPool:              worker_pool.NewWorkerPool(cfg.WorkersAmount, ctx),
 	}
 }
 
@@ -54,19 +54,19 @@ func (s *TcpServer) RegisterHandler(
 }
 
 func (s *TcpServer) Run() error {
-	listener, err := net.Listen("tcp", s.Address)
+	listener, err := net.Listen("tcp", s.address)
 	if err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 	defer listener.Close()
 
-	log.Printf("Server listening on %s", s.Address)
+	log.Printf("Server listening on %s", s.address)
 
 	s.workerPool.Start()
 
 	for {
 		select {
-		case <-s.Ctx.Done():
+		case <-s.ctx.Done():
 			return nil
 		default:
 		}
@@ -87,7 +87,7 @@ func (s *TcpServer) reserveClientConnection(clientIp string) error {
 	s.connectionsMutex.Lock()
 	defer s.connectionsMutex.Unlock()
 	clientConnections := s.connections[clientIp]
-	if clientConnections >= s.MaxConnectionsPerClient {
+	if clientConnections >= s.maxConnectionsPerClient {
 		log.Printf("Max connections per client reached for ip: %s, current connections: %d", clientIp, clientConnections)
 		return errors.New("max connections per client reached")
 	}
@@ -117,24 +117,26 @@ func (s *TcpServer) handleNewConnection(conn net.Conn) {
 		s.releaseClientConnection(clientIp)
 	}()
 
-	serverCtx := NewServerContext(s.Ctx, conn, s.MaxMessageSizeBytes)
+	serverCtx := NewServerContext(s.ctx, conn, s.maxMessageSizeBytes, s.clientTimeout)
 
 	for {
 		select {
-		case <-s.Ctx.Done():
+		case <-s.ctx.Done():
 			return
 		default:
 		}
 
-		log.Printf("Waiting for message from client: %s", clientAddress)
-
 		msg, err := serverCtx.WaitMessage()
 		if err != nil {
-			log.Printf("Failed to wait for message: %v", err)
 			if errors.Is(err, ErrConnectionClosed) {
 				log.Printf("Client %s disconnected", clientAddress)
 				return
 			}
+			if errors.Is(err, ErrClientTimeout) {
+				log.Printf("Client %s timed out", clientAddress)
+				return
+			}
+			log.Printf("Failed to wait for message: %v", err)
 			continue
 		}
 

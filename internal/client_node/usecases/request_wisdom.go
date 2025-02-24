@@ -20,7 +20,7 @@ func RequestWisdom(ctx *client_context.ClientContext) error {
 		return err
 	}
 
-	msg, err := ctx.Sdk.WaitMessage()
+	msg, err := ctx.Sdk.PopMessage()
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func RequestWisdom(ctx *client_context.ClientContext) error {
 		return err
 	}
 
-	msg, err = ctx.Sdk.WaitMessage()
+	msg, err = ctx.Sdk.PopMessage()
 	if err != nil {
 		return err
 	}
