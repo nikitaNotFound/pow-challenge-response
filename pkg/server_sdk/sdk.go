@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync/atomic"
 	"wordofwisdom/pkg/protocol"
 )
 
@@ -19,6 +20,8 @@ type ServerSDK struct {
 	messagesCh  chan []byte
 	connCloseCh chan error
 	errCh       chan error
+
+	closed atomic.Bool
 }
 
 func NewServerSDK(ctx context.Context, address string, maxMessageSizeBytes int) *ServerSDK {
@@ -71,6 +74,12 @@ func (s *ServerSDK) startReceivingMessages() {
 			if errors.Is(err, io.EOF) {
 				s.connCloseCh <- ErrConnectionClosed
 				s.errCh <- err
+
+				s.closed.Store(true)
+				close(s.connCloseCh)
+				close(s.errCh)
+				close(s.messagesCh)
+
 				return
 			}
 			s.errCh <- errors.Join(err, ErrFailedToWaitMessage)
@@ -109,6 +118,10 @@ func (s *ServerSDK) SendMessage(success bool, opcode uint32, payload protocol.Me
 }
 
 func (s *ServerSDK) PopMessage() (*protocol.RawMessage, error) {
+	if s.closed.Load() {
+		return nil, ErrConnectionClosed
+	}
+
 	select {
 	case message := <-s.messagesCh:
 		return protocol.ParseRawMessage(message)
