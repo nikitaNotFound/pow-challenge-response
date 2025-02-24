@@ -106,16 +106,11 @@ func (s *ServerSDK) SendMessage(success bool, opcode uint32, payload protocol.Me
 }
 
 func (s *ServerSDK) PopMessage() (*protocol.RawMessage, error) {
-	var message []byte
-	var err error
 	select {
-	case message = <-s.messagesCh:
-	case err = <-s.errCh:
-	}
+	case message := <-s.messagesCh:
+		return protocol.ParseRawMessage(message)
 
-	if err != nil {
+	case err := <-s.errCh:
 		return nil, errors.Join(err, ErrFailedToWaitMessage)
 	}
-
-	return protocol.ParseRawMessage(message)
 }
