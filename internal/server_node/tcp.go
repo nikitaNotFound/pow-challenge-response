@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"wordofwisdom/pkg/protocol"
+	"wordofwisdom/pkg/worker_pool"
 )
 
 type ServerHandler func(ctx *ServerContext) error
@@ -23,9 +24,16 @@ type TcpServer struct {
 
 	connections      map[string]int
 	connectionsMutex sync.Mutex
+	workerPool       *worker_pool.WorkerPool
 }
 
-func NewTcpServer(ctx context.Context, address string, maxMessageSizeBits int, maxConnectionsPerClient int) *TcpServer {
+func NewTcpServer(
+	ctx context.Context,
+	address string,
+	maxMessageSizeBits int,
+	maxConnectionsPerClient int,
+	workersAmount int,
+) *TcpServer {
 	return &TcpServer{
 		MaxMessageSizeBytes:     maxMessageSizeBits,
 		MaxConnectionsPerClient: maxConnectionsPerClient,
@@ -34,6 +42,7 @@ func NewTcpServer(ctx context.Context, address string, maxMessageSizeBits int, m
 		handlers:                make(map[uint32]ServerHandler),
 		connections:             make(map[string]int),
 		connectionsMutex:        sync.Mutex{},
+		workerPool:              worker_pool.NewWorkerPool(workersAmount, ctx),
 	}
 }
 
@@ -53,6 +62,8 @@ func (s *TcpServer) Run() error {
 
 	log.Printf("Server listening on %s", s.Address)
 
+	s.workerPool.Start()
+
 	for {
 		select {
 		case <-s.Ctx.Done():
@@ -66,7 +77,9 @@ func (s *TcpServer) Run() error {
 			continue
 		}
 
-		go s.handleNewConnection(conn)
+		s.workerPool.RunWork(func() {
+			s.handleNewConnection(conn)
+		})
 	}
 }
 

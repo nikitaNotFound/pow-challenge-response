@@ -5,6 +5,7 @@ type ServerConfig struct {
 	MaxMessageSizeBytes     int
 	ChallengeDifficulty     uint64
 	MaxConnectionsPerClient int
+	WorkersAmount           int
 }
 
 func GetServerConfig() *ServerConfig {
@@ -13,5 +14,6 @@ func GetServerConfig() *ServerConfig {
 		MaxMessageSizeBytes:     1024,
 		ChallengeDifficulty:     3,
 		MaxConnectionsPerClient: 2,
+		WorkersAmount:           10,
 	}
 }
