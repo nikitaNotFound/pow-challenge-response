@@ -51,36 +51,39 @@ func (s *ServerSDK) OpenConnection() error {
 	}
 	s.conn = conn
 
-	s.StartReceivingMessages()
+	go s.startReceivingMessages()
 
 	return nil
 }
 
-func (s *ServerSDK) StartReceivingMessages() {
-	go func() {
-		for {
-			select {
-			case <-s.ctx.Done():
-				return
-			default:
-			}
+func (s *ServerSDK) startReceivingMessages() {
+	messageBuff := make([]byte, s.maxMessageSizeBytes)
 
-			messageBuff := make([]byte, s.maxMessageSizeBytes)
-			bytesMessage, err := s.conn.Read(messageBuff)
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					s.connCloseCh <- ErrConnectionClosed
-					s.errCh <- err
-					return
-				}
-				s.errCh <- errors.Join(err, ErrFailedToWaitMessage)
-				continue
-			}
-
-			log.Printf("Received message from server, %d bytes", bytesMessage)
-			s.messagesCh <- messageBuff[:bytesMessage]
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		default:
 		}
-	}()
+
+		bytesMessage, err := s.conn.Read(messageBuff)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				s.connCloseCh <- ErrConnectionClosed
+				s.errCh <- err
+				return
+			}
+			s.errCh <- errors.Join(err, ErrFailedToWaitMessage)
+			continue
+		}
+
+		log.Printf("Received message from server, %d bytes", bytesMessage)
+
+		exact := make([]byte, bytesMessage)
+		copy(exact, messageBuff[:bytesMessage])
+
+		s.messagesCh <- exact
+	}
 }
 
 func (s *ServerSDK) CloseConnection() error {
