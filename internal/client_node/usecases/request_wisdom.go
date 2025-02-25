@@ -9,6 +9,7 @@ import (
 	"wordofwisdom/internal/pow"
 	"wordofwisdom/pkg/protocol/requests"
 	"wordofwisdom/pkg/protocol/responses"
+	"wordofwisdom/pkg/server_sdk"
 )
 
 var (
@@ -22,6 +23,11 @@ func RequestWisdom(ctx *client_context.ClientContext) error {
 
 	msg, err := ctx.Sdk.PopMessage()
 	if err != nil {
+		if errors.Is(err, server_sdk.ErrPopMessageTimeout) {
+			ctx.Sdk.CloseConnection()
+			log.Println("Closing connection due to message pop timeout.")
+			return err
+		}
 		return err
 	}
 	if msg.Opcode != responses.RES_CODE_CHALLENGE {
@@ -40,7 +46,6 @@ func RequestWisdom(ctx *client_context.ClientContext) error {
 		ExpectedPrefix: challengeRes.ExpectedPrefix,
 	}
 
-	log.Printf("Challenge received [DIFFICULTY: %d]. Solving challenge...", challenge.Difficulty)
 	started := time.Now()
 	proof, err := challenge.Solve()
 	if err != nil {
@@ -67,6 +72,6 @@ func RequestWisdom(ctx *client_context.ClientContext) error {
 		return err
 	}
 
-	fmt.Printf("Wisdom received: %s ; [CHALLENGE TIME: %.4f seconds]\n", wisdomRes.Quote, elapsed.Seconds())
+	fmt.Printf("Wisdom received; [CHALLENGE TIME: %.4f seconds]\n", elapsed.Seconds())
 	return nil
 }

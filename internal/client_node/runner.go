@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 	"wordofwisdom/internal/client_node/client_context"
 	"wordofwisdom/internal/client_node/usecases"
 	"wordofwisdom/pkg/server_sdk"
@@ -14,7 +15,12 @@ func RunClient(ctx context.Context) error {
 	defer cancel()
 	cfg := GetClientConfig()
 
-	sdk := server_sdk.NewServerSDK(ctx, cfg.ServerAddress, cfg.MaxMessageSizeBytes)
+	sdk := server_sdk.NewServerSDK(
+		ctx,
+		cfg.ServerAddress,
+		cfg.MaxMessageSizeBytes,
+		time.Duration(cfg.PopMessageTimeoutMs)*time.Millisecond,
+	)
 	if err := sdk.OpenConnection(); err != nil {
 		return err
 	}

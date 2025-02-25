@@ -103,7 +103,6 @@ func (s *TcpServer) releaseClientConnection(clientIp string) {
 
 func (s *TcpServer) handleNewConnection(conn net.Conn) {
 	clientIp := strings.Split(conn.RemoteAddr().String(), ":")[0]
-
 	if err := s.reserveClientConnection(clientIp); err != nil {
 		conn.Close()
 		return
