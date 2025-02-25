@@ -3,7 +3,6 @@ package protocol
 import (
 	"encoding/binary"
 	"errors"
-	"log"
 )
 
 var (
@@ -60,7 +59,6 @@ func BuildRawMessage(success bool, opcode uint32, payload MessageEncoder) ([]byt
 
 		messageBuff = append(messageBuff, buff...)
 	}
-	log.Printf("Built message. [SIZE: %d bytes]", len(messageBuff))
 
 	return messageBuff, nil
 }

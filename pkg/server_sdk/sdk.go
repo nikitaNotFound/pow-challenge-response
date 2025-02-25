@@ -6,14 +6,16 @@ import (
 	"io"
 	"log"
 	"net"
+	"time"
 	"wordofwisdom/pkg/protocol"
 )
 
 type ServerSDK struct {
 	serverAddress       string
 	maxMessageSizeBytes int
-	ctx                 context.Context
+	popMessageTimeout   time.Duration
 
+	ctx  context.Context
 	conn net.Conn
 
 	messagesCh  chan []byte
@@ -21,11 +23,17 @@ type ServerSDK struct {
 	errCh       chan error
 }
 
-func NewServerSDK(ctx context.Context, address string, maxMessageSizeBytes int) *ServerSDK {
+func NewServerSDK(
+	ctx context.Context,
+	address string,
+	maxMessageSizeBytes int,
+	popMessageTimeout time.Duration,
+) *ServerSDK {
 	return &ServerSDK{
 		serverAddress:       address,
 		ctx:                 ctx,
 		maxMessageSizeBytes: maxMessageSizeBytes,
+		popMessageTimeout:   popMessageTimeout,
 		messagesCh:          make(chan []byte),
 		connCloseCh:         make(chan error),
 		errCh:               make(chan error),
@@ -39,6 +47,7 @@ var (
 	ErrFailedToWaitMessage  = errors.New("failed to wait message")
 	ErrFailedToSendMessage  = errors.New("failed to send message")
 	ErrFailedToBuildMessage = errors.New("failed to build message")
+	ErrPopMessageTimeout    = errors.New("pop message timeout")
 )
 
 func (s *ServerSDK) OpenConnection() error {
@@ -106,7 +115,13 @@ func (s *ServerSDK) SendMessage(success bool, opcode uint32, payload protocol.Me
 }
 
 func (s *ServerSDK) PopMessage() (*protocol.RawMessage, error) {
+	timeout := time.After(s.popMessageTimeout)
+
 	select {
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err()
+	case <-timeout:
+		return nil, ErrPopMessageTimeout
 	case message := <-s.messagesCh:
 		return protocol.ParseRawMessage(message)
 

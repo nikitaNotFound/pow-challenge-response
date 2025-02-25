@@ -33,6 +33,9 @@ run-all: build
 run-monitoring:
 	expvarmon -ports="1234" -vars="mem:memstats.Alloc,mem:memstats.Sys,mem:memstats.HeapAlloc,mem:memstats.HeapInuse,duration:memstats.PauseNs,duration:memstats.PauseTotalNs,Goroutines,duration:Uptime,duration:Response.Mean"
 
+run-load-test:
+	go run ./cmd/server_test/main.go
+
 # Windows commands
 WIN_BINARY_DIR = bin
 WIN_SERVER = $(WIN_BINARY_DIR)\server.exe
