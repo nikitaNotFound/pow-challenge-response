@@ -13,9 +13,9 @@ func GetServerConfig() *ServerConfig {
 	return &ServerConfig{
 		Address:                   "127.0.0.1:12345",
 		MaxMessageSizeBytes:       1024,
-		ChallengeDifficulty:       3,
+		ChallengeDifficulty:       2,
 		MaxConnectionsPerClient:   1000,
 		WorkersAmount:             100,
-		ClientTimeoutMilliseconds: 30000,
+		ClientTimeoutMilliseconds: 60000,
 	}
 }
